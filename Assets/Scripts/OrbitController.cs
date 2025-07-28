@@ -8,15 +8,18 @@ public class OrbitController : MonoBehaviour
     // --- Public Fields (Visible in Unity Inspector) ---
 
     [Header("Object References")]
-    // ** CORRECTED: Added milkyWayObject and lmcObject back **
     [Tooltip("The GameObject representing the Milky Way.")]
     public GameObject milkyWayObject;
     [Tooltip("The GameObject representing the Large Magellanic Cloud.")]
     public GameObject lmcObject;
     [Tooltip("The VR player object in the scene (e.g., GenericPlayer).")]
     public GameObject playerObject; 
-    [Tooltip("The main camera used by getReal3D (often a child of the player).")]
-    public Camera mainCamera;
+
+    [Header("Startup Settings")]
+    [Tooltip("The world-space position where the player will start.")]
+    public Vector3 playerStartPosition = new Vector3(-54, 10, -21);
+    [Tooltip("The world-space rotation (in Euler angles) for the player at start.")]
+    public Vector3 playerStartRotation = new Vector3(-2, 52, 30);
 
     [Header("Simulation Settings")]
     [Tooltip("Should the spheres leave a trail behind them?")]
@@ -30,6 +33,8 @@ public class OrbitController : MonoBehaviour
     private bool dataLoaded = false; // Safety flag
     private float scaleFactor = 1.0f;
     private float timer = 0f;
+    private Vector3 scaledCenterOffset; // The offset needed to center the simulation at the origin.
+    private bool hasSetInitialPlayerPosition = false; // Flag to ensure we only set the start position once.
     
     // --- Constants ---
     private const float UPDATE_INTERVAL = 0.02f; // Fixed update time (50 updates per second)
@@ -77,17 +82,8 @@ public class OrbitController : MonoBehaviour
                 return;
             }
         }
-        // If the camera isn't assigned, try to find it automatically.
-        if (mainCamera == null)
-        {
-            mainCamera = Camera.main;
-             if (mainCamera == null) {
-                Debug.LogError("Could not find a Main Camera in the scene. Please assign it in the Inspector.", this);
-                return;
-            }
-        }
 
-        // Position and scale the entire simulation relative to the player.
+        // Calculate the scale and center offset for the simulation, which will be fixed at the world origin.
         PositionAndScaleSimulation();
 
         // --- Scale and color the spheres ---
@@ -97,9 +93,9 @@ public class OrbitController : MonoBehaviour
         milkyWayObject.GetComponent<Renderer>().material.color = MW_COLOR;
         lmcObject.GetComponent<Renderer>().material.color = LMC_COLOR;
 
-        // Set the initial LOCAL position of the spheres within the scaled SimulationManager.
-        milkyWayObject.transform.localPosition = mw_trajectory[0] * scaleFactor;
-        lmcObject.transform.localPosition = lmc_trajectory[0] * scaleFactor;
+        // Set the initial LOCAL position of the spheres, applying the centering offset.
+        milkyWayObject.transform.localPosition = (mw_trajectory[0] * scaleFactor) - scaledCenterOffset;
+        lmcObject.transform.localPosition = (lmc_trajectory[0] * scaleFactor) - scaledCenterOffset;
 
         // Configure the trail renderers if enabled.
         if (enableTrail)
@@ -120,10 +116,34 @@ public class OrbitController : MonoBehaviour
         {
             timer -= UPDATE_INTERVAL;
             current_index++;
-            milkyWayObject.transform.localPosition = mw_trajectory[current_index] * scaleFactor;
-            lmcObject.transform.localPosition = lmc_trajectory[current_index] * scaleFactor;
+            
+            // Update the local position of the spheres, applying the centering offset.
+            milkyWayObject.transform.localPosition = (mw_trajectory[current_index] * scaleFactor) - scaledCenterOffset;
+            lmcObject.transform.localPosition = (lmc_trajectory[current_index] * scaleFactor) - scaledCenterOffset;
         }
     }
+
+    // LateUpdate is called after all Update functions have been called.
+    // This is the best place to override other scripts' control of the transform on the first frame.
+    void LateUpdate()
+    {
+        // Check if we have already set the initial position. If so, do nothing.
+        if (hasSetInitialPlayerPosition || playerObject == null)
+        {
+            return;
+        }
+
+        // --- Apply the hardcoded starting position and rotation to the player ---
+        // This will override any position set by other scripts in their Start or Update methods.
+        playerObject.transform.position = playerStartPosition;
+        playerObject.transform.eulerAngles = playerStartRotation;
+
+        // Set the flag to true so this code only ever runs once.
+        hasSetInitialPlayerPosition = true;
+        
+        Debug.Log("Player start position has been set by OrbitController.");
+    }
+
 
     void LoadTrajectoryData(string fileName, List<Vector3> trajectoryList)
     {
@@ -151,11 +171,15 @@ public class OrbitController : MonoBehaviour
     }
     
     /// <summary>
-    /// MODIFIED: Calculates the bounds of the simulation and positions it relative to the player's CAMERA.
+    /// MODIFIED: Calculates the scale and center offset required to frame the simulation at the world origin.
     /// </summary>
     void PositionAndScaleSimulation()
     {
-        if (mw_trajectory.Count == 0 || playerObject == null || mainCamera == null) return;
+        if (mw_trajectory.Count == 0) return;
+
+        // Ensure the SimulationManager itself is at the world origin.
+        this.transform.position = Vector3.zero;
+        this.transform.rotation = Quaternion.identity;
 
         var bounds = new Bounds(mw_trajectory[0], Vector3.zero);
         foreach (var point in mw_trajectory) { bounds.Encapsulate(point); }
@@ -169,21 +193,10 @@ public class OrbitController : MonoBehaviour
             scaleFactor = 1.0f;
         }
 
-        Vector3 scaledCenter = bounds.center * scaleFactor;
-
-        // This is the key change.
-        // We use the player's position as the anchor, but the CAMERA's forward
-        // vector as the direction. This ensures the content is placed in front
-        // of what the user is actually seeing.
-        Vector3 playerPosition = playerObject.transform.position;
-        Vector3 viewForward = mainCamera.transform.forward;
+        // Calculate and store the offset required to center the simulation within this GameObject.
+        scaledCenterOffset = bounds.center * scaleFactor;
         
-        // Position the simulation's center a certain distance in front of the player's view.
-        float viewDistance = (SIMULATION_SIZE / 2.0f) + 2.0f; // 2 meters buffer
-        
-        this.transform.position = playerPosition + (viewForward * viewDistance) - scaledCenter;
-        
-        Debug.Log($"Player found at {playerPosition}. Simulation positioned in front of player's view.");
+        Debug.Log($"Simulation is now fixed at the world origin. Scale factor: {scaleFactor}.");
     }
 
     void SetupTrail(GameObject obj, Color trailColor)
