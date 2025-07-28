@@ -1,7 +1,7 @@
 <unity>
   <map_button name="WandButton" index="1" unity_button="Fire1" key="VK_LCONTROL" button="JOYSTICK_A" />
   <map_button name="ChangeWand" index="2" unity_button="Fire3" key="VK_LSHIFT" button="JOYSTICK_X" />
-  <map_button name="Reset" index="3" unity_button="Fire2" key="VK_LMENU" button="JOYSTICK_B16" />
+  <map_button name="Reset" index="3" unity_button="Fire2" button="JOYSTICK_B16" />
   <map_button name="Jump" index="4" unity_button="Jump" key="VK_SPACE" button="JOYSTICK_B" />
   <map_button name="WandLook" index="5" />
   <map_button name="NavSpeed" index="6" />
