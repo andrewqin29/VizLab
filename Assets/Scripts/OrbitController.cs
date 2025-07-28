@@ -8,8 +8,15 @@ public class OrbitController : MonoBehaviour
     // --- Public Fields (Visible in Unity Inspector) ---
 
     [Header("Object References")]
+    // ** CORRECTED: Added milkyWayObject and lmcObject back **
+    [Tooltip("The GameObject representing the Milky Way.")]
     public GameObject milkyWayObject;
+    [Tooltip("The GameObject representing the Large Magellanic Cloud.")]
     public GameObject lmcObject;
+    [Tooltip("The VR player object in the scene (e.g., GenericPlayer).")]
+    public GameObject playerObject; 
+    [Tooltip("The main camera used by getReal3D (often a child of the player).")]
+    public Camera mainCamera;
 
     [Header("Simulation Settings")]
     [Tooltip("Should the spheres leave a trail behind them?")]
@@ -32,14 +39,18 @@ public class OrbitController : MonoBehaviour
     private readonly Color LMC_COLOR = Color.magenta;
 
 
+    // This method is called once when the script instance is being loaded.
     void Awake()
     {
+        // Initialize the lists to store the trajectory points.
         mw_trajectory = new List<Vector3>();
         lmc_trajectory = new List<Vector3>();
 
+        // Load the data from the text files in the Resources folder.
         LoadTrajectoryData("interp_mw_orbit", mw_trajectory);
         LoadTrajectoryData("interp_lmc_orbit", lmc_trajectory);
 
+        // Verify that the data was loaded and the trajectories have the same length.
         if (mw_trajectory.Count > 0 && mw_trajectory.Count == lmc_trajectory.Count)
         {
             dataLoaded = true;
@@ -52,23 +63,45 @@ public class OrbitController : MonoBehaviour
         }
     }
 
+    // This method is called before the first frame update.
     void Start()
     {
-        if (!dataLoaded) return;
+        if (!dataLoaded) return; // Do not proceed if data isn't ready.
 
+        // If the player object isn't assigned in the Inspector, try to find it automatically.
+        if (playerObject == null)
+        {
+            playerObject = GameObject.Find("GenericPlayer");
+            if (playerObject == null) {
+                Debug.LogError("Could not find 'GenericPlayer' in the scene. Please assign it in the Inspector.", this);
+                return;
+            }
+        }
+        // If the camera isn't assigned, try to find it automatically.
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+             if (mainCamera == null) {
+                Debug.LogError("Could not find a Main Camera in the scene. Please assign it in the Inspector.", this);
+                return;
+            }
+        }
 
+        // Position and scale the entire simulation relative to the player.
         PositionAndScaleSimulation();
 
+        // --- Scale and color the spheres ---
         float sphereScale = SIMULATION_SIZE * SPHERE_SIZE_RATIO;
         milkyWayObject.transform.localScale = Vector3.one * sphereScale;
         lmcObject.transform.localScale = Vector3.one * sphereScale;
-
         milkyWayObject.GetComponent<Renderer>().material.color = MW_COLOR;
         lmcObject.GetComponent<Renderer>().material.color = LMC_COLOR;
 
+        // Set the initial LOCAL position of the spheres within the scaled SimulationManager.
         milkyWayObject.transform.localPosition = mw_trajectory[0] * scaleFactor;
         lmcObject.transform.localPosition = lmc_trajectory[0] * scaleFactor;
 
+        // Configure the trail renderers if enabled.
         if (enableTrail)
         {
             SetupTrail(milkyWayObject, MW_COLOR);
@@ -76,21 +109,17 @@ public class OrbitController : MonoBehaviour
         }
     }
 
+    // This method is called once per frame.
     void Update()
     {
-        if (!dataLoaded || current_index >= mw_trajectory.Count - 1)
-        {
-            return;
-        }
+        if (!dataLoaded || current_index >= mw_trajectory.Count - 1) return;
 
         timer += Time.deltaTime;
 
         if (timer >= UPDATE_INTERVAL)
         {
             timer -= UPDATE_INTERVAL;
-
             current_index++;
-
             milkyWayObject.transform.localPosition = mw_trajectory[current_index] * scaleFactor;
             lmcObject.transform.localPosition = lmc_trajectory[current_index] * scaleFactor;
         }
@@ -108,44 +137,53 @@ public class OrbitController : MonoBehaviour
             if (i == 0 || string.IsNullOrWhiteSpace(lines[i])) continue;
             string[] values = lines[i].Trim().Split(' ');
             if (values.Length >= 4) {
-                float x = float.Parse(values[1], CultureInfo.InvariantCulture);
-                float y = float.Parse(values[2], CultureInfo.InvariantCulture);
-                float z = float.Parse(values[3], CultureInfo.InvariantCulture);
-                trajectoryList.Add(new Vector3(x, y, z));
+                try {
+                    float x = float.Parse(values[1], CultureInfo.InvariantCulture);
+                    float y = float.Parse(values[2], CultureInfo.InvariantCulture);
+                    float z = float.Parse(values[3], CultureInfo.InvariantCulture);
+                    trajectoryList.Add(new Vector3(x, y, z));
+                }
+                catch (System.Exception e) {
+                    Debug.LogWarning($"Could not parse line {i + 1} in {fileName}.txt. Content: '{lines[i]}'. Error: {e.Message}");
+                }
             }
         }
     }
     
+    /// <summary>
+    /// MODIFIED: Calculates the bounds of the simulation and positions it relative to the player's CAMERA.
+    /// </summary>
     void PositionAndScaleSimulation()
     {
-        if (mw_trajectory.Count == 0) return;
+        if (mw_trajectory.Count == 0 || playerObject == null || mainCamera == null) return;
 
-        // create a bounding box that encapsulates all points from both trajectories.
         var bounds = new Bounds(mw_trajectory[0], Vector3.zero);
-        foreach (var point in mw_trajectory) {
-            bounds.Encapsulate(point);
-        }
-        foreach (var point in lmc_trajectory) {
-            bounds.Encapsulate(point);
-        }
+        foreach (var point in mw_trajectory) { bounds.Encapsulate(point); }
+        foreach (var point in lmc_trajectory) { bounds.Encapsulate(point); }
 
-        // find the largest dimension of the raw data.
         float maxBoundSize = Mathf.Max(bounds.size.x, bounds.size.y, bounds.size.z);
 
-        // calculate the scale factor needed to shrink the simulation to our target size.
         if (maxBoundSize > 0) {
             scaleFactor = SIMULATION_SIZE / maxBoundSize;
         } else {
             scaleFactor = 1.0f;
         }
 
-        // calculate the scaled center of the data.
         Vector3 scaledCenter = bounds.center * scaleFactor;
 
-        // centered in the user's view at startup.
-        this.transform.position = -scaledCenter;
+        // This is the key change.
+        // We use the player's position as the anchor, but the CAMERA's forward
+        // vector as the direction. This ensures the content is placed in front
+        // of what the user is actually seeing.
+        Vector3 playerPosition = playerObject.transform.position;
+        Vector3 viewForward = mainCamera.transform.forward;
         
-        Debug.Log($"Simulation centered at {bounds.center}. Scaled by factor {scaleFactor} to fit a target size of {SIMULATION_SIZE}.");
+        // Position the simulation's center a certain distance in front of the player's view.
+        float viewDistance = (SIMULATION_SIZE / 2.0f) + 2.0f; // 2 meters buffer
+        
+        this.transform.position = playerPosition + (viewForward * viewDistance) - scaledCenter;
+        
+        Debug.Log($"Player found at {playerPosition}. Simulation positioned in front of player's view.");
     }
 
     void SetupTrail(GameObject obj, Color trailColor)

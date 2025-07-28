@@ -178,6 +178,12 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3b4b271e01ba669489421baa2cc3471d, type: 3}
+--- !u!1 &401356378 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1695136065028628, guid: 24af6a7d444a9184b9b4f82fd7b11aa6,
+    type: 3}
+  m_PrefabInstance: {fileID: 1035921895}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &633477620
 GameObject:
   m_ObjectHideFlags: 0
@@ -271,6 +277,12 @@ Transform:
   m_Father: {fileID: 1711203467}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!20 &658790464 stripped
+Camera:
+  m_CorrespondingSourceObject: {fileID: 20432331067269968, guid: 24af6a7d444a9184b9b4f82fd7b11aa6,
+    type: 3}
+  m_PrefabInstance: {fileID: 1035921895}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -564,8 +576,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   milkyWayObject: {fileID: 1555673709}
   lmcObject: {fileID: 633477620}
-  simulationSpeed: 50
-  targetSize: 20
+  playerObject: {fileID: 401356378}
+  mainCamera: {fileID: 658790464}
   enableTrail: 1
 --- !u!4 &1711203467
 Transform:
