@@ -169,7 +169,7 @@ public class OrbitController : MonoBehaviour
     void SetupTrail(GameObject obj, Color trailColor)
     {
         TrailRenderer tr = obj.AddComponent<TrailRenderer>();
-        tr.time = 20.0f;
+        tr.time = 100.0f;
         tr.startWidth = milkyWayVisualRadius * 0.01f;
         tr.endWidth = 0.0f;
         tr.material = new Material(Shader.Find("Legacy Shaders/Particles/Additive"));
