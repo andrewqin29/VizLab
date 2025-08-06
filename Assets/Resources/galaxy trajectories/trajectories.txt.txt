@@ -1,0 +1,8 @@
+trajectory 1 - isotropic LMC mass model 1
+trajectory 2 - isotropic LMC mass model 2
+trajectory 3 - isotropic LMC mass model 3
+trajectory 4 - isotropic LMC mass model 4
+trajectory 5 - radial LMC mass model 5
+trajectory 6 - radial LMC mass model 6
+trajectory 7 - radial LMC mass model 7
+trajectory 8 - radial LMC mass model 8
